@@ -30,6 +30,7 @@ import os
 import random
 from itertools import chain
 from pathlib import Path
+from pdb import set_trace as breakpoint
 
 import datasets
 import torch
@@ -407,7 +408,7 @@ def main():
         with accelerator.main_process_first():
             tokenized_datasets = raw_datasets.map(
                 tokenize_function,
-                batched=True,
+                batched=False,
                 num_proc=args.preprocessing_num_workers,
                 remove_columns=[text_column_name],
                 load_from_cache_file=not args.overwrite_cache,
@@ -465,6 +466,7 @@ def main():
 
     #train_dataset = tokenized_datasets["train"]
     eval_dataset = tokenized_datasets["validation"]
+    breakpoint()
 
     # Conditional for small test subsets
     #if len(train_dataset) > 3 and False:
@@ -607,12 +609,13 @@ def main():
 
         model.eval()
         losses = []
-        for step, batch in enumerate(eval_dataloader):
+        for step, batch in tqdm(enumerate(eval_dataloader)):
             with torch.no_grad():
                 outputs = model(**batch)
 
             loss = outputs.loss
             losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))
+            breakpoint()
 
         losses = torch.cat(losses)
         losses = losses[: len(eval_dataset)]
@@ -645,13 +648,13 @@ def main():
             accelerator.save_state(output_dir)
 
     if args.output_dir is not None:
-        accelerator.wait_for_everyone()
-        unwrapped_model = accelerator.unwrap_model(model)
-        unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
-        if accelerator.is_main_process:
-            tokenizer.save_pretrained(args.output_dir)
-            if args.push_to_hub:
-                repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
+        #accelerator.wait_for_everyone()
+        #unwrapped_model = accelerator.unwrap_model(model)
+        #unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
+        #if accelerator.is_main_process:
+        #    tokenizer.save_pretrained(args.output_dir)
+        #    if args.push_to_hub:
+        #        repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
 
         with open(os.path.join(args.output_dir, "all_results.json"), "w") as f:
             json.dump({"perplexity": perplexity}, f)
