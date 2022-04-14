@@ -34,7 +34,6 @@
         for step, batch in enumerate(eval_dataloader):
             with torch.no_grad():
                 outputs = model(**batch)
-
             loss = outputs.loss
             losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))
 
