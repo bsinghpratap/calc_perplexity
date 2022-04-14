@@ -35,9 +35,9 @@
             with torch.no_grad():
                 outputs = model(**batch)
             loss = outputs.loss
-            losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))
+            losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))`
 
-        losses = torch.cat(losses)
+`       losses = torch.cat(losses)
         losses = losses[: len(eval_dataset)]
         try:
             perplexity = math.exp(torch.mean(losses))
