@@ -467,10 +467,10 @@ def main():
     eval_dataset = tokenized_datasets["validation"]
 
     # Conditional for small test subsets
-    #if len(train_dataset) > 3 and False:
-    #    # Log a few random samples from the training set:
-    #    for index in random.sample(range(len(train_dataset)), 3):
-    #        logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
+    if len(train_dataset) > 3 and False:
+        # Log a few random samples from the training set:
+        for index in random.sample(range(len(train_dataset)), 3):
+            logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
 
     # Data collator
     # This one will take care of randomly masking the tokens.
@@ -505,24 +505,26 @@ def main():
     # shorter in multiprocess)
 
     # Scheduler and math around the number of training steps.
-    #num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
-    #if args.max_train_steps is None:
-    #    args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
-    #else:
-    #    args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
+    num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
+    if args.max_train_steps is None:
+        args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
+    else:
+        args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
 
-    #lr_scheduler = get_scheduler(
-    #    name=args.lr_scheduler_type,
-    #    optimizer=optimizer,
-    #    num_warmup_steps=args.num_warmup_steps,
-    #    num_training_steps=args.max_train_steps,
-    #)
+    lr_scheduler = get_scheduler(
+        name=args.lr_scheduler_type,
+        optimizer=optimizer,
+        num_warmup_steps=args.num_warmup_steps,
+        num_training_steps=args.max_train_steps,
+    )
 
     # Prepare everything with our `accelerator`.
     #model, optimizer, train_dataloader, eval_dataloader, lr_scheduler = accelerator.prepare(
     #    model, optimizer, train_dataloader, eval_dataloader, lr_scheduler
     #)
-    model, eval_dataloader = accelerator.prepare(model, eval_dataloader)
+    model, optimizer, eval_dataloader, lr_scheduler = accelerator.prepare(
+        model, optimizer, eval_dataloader, lr_scheduler
+    )
 
     # Figure out how many steps we should save the Accelerator states
     if hasattr(args.checkpointing_steps, "isdigit"):
@@ -543,14 +545,14 @@ def main():
     total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
 
     logger.info("***** Running training *****")
-    #logger.info(f"  Num examples = {len(train_dataset)}")
+    logger.info(f"  Num examples = {len(train_dataset)}")
     logger.info(f"  Num Epochs = {args.num_train_epochs}")
     logger.info(f"  Instantaneous batch size per device = {args.per_device_train_batch_size}")
     logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
     logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
-    #logger.info(f"  Total optimization steps = {args.max_train_steps}")
+    logger.info(f"  Total optimization steps = {args.max_train_steps}")
     # Only show the progress bar once on each machine.
-    #progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
+    progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
     completed_steps = 0
 
     # Potentially load in the weights and states from a previous save
@@ -577,33 +579,33 @@ def main():
         model.train()
         if args.with_tracking:
             total_loss = 0
-        #for step, batch in enumerate(train_dataloader):
-        #    # We need to skip steps until we reach the resumed step
-        #    if args.resume_from_checkpoint and epoch == 0 and step < resume_step:
-        #        continue
-        #    outputs = model(**batch)
-        #    loss = outputs.loss
-        #    # We keep track of the loss at each epoch
-        #    if args.with_tracking:
-        #        total_loss += loss.detach().float()
-        #    loss = loss / args.gradient_accumulation_steps
-        #    accelerator.backward(loss)
-        #    if step % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
-        #        optimizer.step()
-        #        lr_scheduler.step()
-        #        optimizer.zero_grad()
-        #        progress_bar.update(1)
-        #        completed_steps += 1
+        for step, batch in enumerate(train_dataloader):
+            # We need to skip steps until we reach the resumed step
+            if args.resume_from_checkpoint and epoch == 0 and step < resume_step:
+                continue
+            outputs = model(**batch)
+            loss = outputs.loss
+            # We keep track of the loss at each epoch
+            if args.with_tracking:
+                total_loss += loss.detach().float()
+            loss = loss / args.gradient_accumulation_steps
+            accelerator.backward(loss)
+            if step % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
+                optimizer.step()
+                lr_scheduler.step()
+                optimizer.zero_grad()
+                progress_bar.update(1)
+                completed_steps += 1
 
-        #    if isinstance(checkpointing_steps, int):
-        #        if completed_steps % checkpointing_steps == 0:
-        #            output_dir = f"step_{completed_steps}"
-        #            if args.output_dir is not None:
-        #                output_dir = os.path.join(args.output_dir, output_dir)
-        #            accelerator.save_state(output_dir)
+            if isinstance(checkpointing_steps, int):
+                if completed_steps % checkpointing_steps == 0:
+                    output_dir = f"step_{completed_steps}"
+                    if args.output_dir is not None:
+                        output_dir = os.path.join(args.output_dir, output_dir)
+                    accelerator.save_state(output_dir)
 
-        #    if completed_steps >= args.max_train_steps:
-        #        break
+            if completed_steps >= args.max_train_steps:
+                break
 
         model.eval()
         losses = []
