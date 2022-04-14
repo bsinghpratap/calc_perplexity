@@ -29,4 +29,20 @@
                 desc="Running tokenizer on dataset line_by_line",
             )`
 
+`model.eval()
+        losses = []
+        for step, batch in enumerate(eval_dataloader):
+            with torch.no_grad():
+                outputs = model(**batch)
 
+            loss = outputs.loss
+            losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))
+
+        losses = torch.cat(losses)
+        losses = losses[: len(eval_dataset)]
+        try:
+            perplexity = math.exp(torch.mean(losses))
+        except OverflowError:
+            perplexity = float("inf")
+
+        logger.info(f"epoch {epoch}: perplexity: {perplexity}")`
