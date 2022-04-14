@@ -466,7 +466,7 @@ def main():
 
     #train_dataset = tokenized_datasets["train"]
     eval_dataset = tokenized_datasets["validation"]
-    breakpoint()
+    #breakpoint()
 
     # Conditional for small test subsets
     #if len(train_dataset) > 3 and False:
@@ -615,7 +615,7 @@ def main():
 
             loss = outputs.loss
             losses.append(accelerator.gather(loss.repeat(args.per_device_eval_batch_size)))
-            breakpoint()
+            #breakpoint()
 
         losses = torch.cat(losses)
         losses = losses[: len(eval_dataset)]
